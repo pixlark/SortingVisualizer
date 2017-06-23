@@ -37,6 +37,7 @@ void draw_array(
 		bar_rect.y = SCREEN_HEIGHT - bar_height;
 		bar_rect.h = bar_height;
 		SDL_BlitSurface(bar_surface, 0, screen_surface, &bar_rect);
+		SDL_FreeSurface(bar_surface);
 	}
 }
 
@@ -79,6 +80,12 @@ int main() {
 				running = 0x00;
 			}
 		}
+		/* SORTING */
+		u16 el1_i = rand() % SORT_ARRAY_LEN;
+		u16 el2_i = rand() % SORT_ARRAY_LEN;
+		u8 temp = sort_array[el1_i];
+		sort_array[el1_i] = sort_array[el2_i];
+		sort_array[el2_i] = temp;
 		/* DRAWING */
 		SDL_FillRect(
 			screen_surface, 0,
@@ -89,6 +96,7 @@ int main() {
 	}
 	
 	/* CLEANUP */
+	free(sort_array);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	

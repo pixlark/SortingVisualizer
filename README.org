@@ -1,0 +1,16 @@
+* Sorting Visualizer
+
+[[./screenshot.png]]
+
+** Usage
+
+-a...Specify an algorithm:
+  - "bubble"
+  - "selection"
+  - "insertion"
+
+-h...Use hardware acceleration
+
+-d...Set a delay between frames in milliseconds
+
+-fps...Print FPS to stdout

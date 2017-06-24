@@ -204,7 +204,7 @@ u8 sort_step(enum Sorts sort, union SortVars * sort_vars, u8 * sort_array, u32 s
 	}
 }
 
-int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware) {
+int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware, u8 echo_fps) {
 	SDL_Window * window;
 	SDL_Surface * screen_surface;
 	SDL_Renderer * renderer;
@@ -308,7 +308,9 @@ int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware) {
 			tick_print_clock = 0;
 			char * fps_str = malloc(sizeof(char) * 12);
 			sprintf(fps_str, "%f\n", 1000 * (1/((double)tick_sum / MAX_TICK_SAMPLES)));
-			printf("%s", fps_str);
+			if (echo_fps) {
+				printf("%s", fps_str);
+			}
 			fwrite(fps_str, sizeof(char), strlen(fps_str), log);
 			free(fps_str);
 		}
@@ -331,6 +333,7 @@ int main(int argc, char ** argv) {
 	enum Sorts algorithm;
 	u8 algorithm_specified = 0;
 	u32 delay = 0;
+	u8 echo_fps = 0;
 	
 	for (int i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "-a") == 0) {
@@ -357,6 +360,8 @@ int main(int argc, char ** argv) {
 			char * delay_str = argv[i + 1];
 			i++;
 			delay = atoi(delay_str);
+		} else if (strcmp(argv[i], "-fps") == 0) {
+			echo_fps = ~0;
 		}
 	}
 
@@ -366,6 +371,6 @@ int main(int argc, char ** argv) {
 	}
 	
 	printf("Launching in %s mode.\n", use_hardware ? "hardware" : "software");
-	run_visualization(algorithm, delay, use_hardware);
+	run_visualization(algorithm, delay, use_hardware, echo_fps);
 	return 0;
 }

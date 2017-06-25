@@ -7,17 +7,21 @@
  *
  */
 
+#if defined(_WIN32) || defined(_WIN64)
+#define SDL_MAIN_HANDLED
+#include <SDL.h>
+#else
 #include <SDL2/SDL.h>
+#include <unistd.h>
+#endif
 #include <pixint.h>
 #include <cpixprint.h>
 #include <cpixlib.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
-#include <unistd.h>
-
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
 
 #define MAX_TICK_SAMPLES 100
 
@@ -58,10 +62,10 @@ void error_quit(u8 * message) {
 
 void draw_array_software(
 	SDL_Surface * screen_surface,
-	u8 * sort_array, int sa_len, SDL_Color * highlights) {
-	int bar_width = (u32)SCREEN_WIDTH / (u32)sa_len;
+	u8 * sort_array, int sa_len, SDL_Color * highlights, SDL_Rect screen_size) {
+	int bar_width = (u32)screen_size.w / (u32)sa_len;
 	for (int i = 0; i < sa_len; i++) {
-		int bar_height = (SCREEN_HEIGHT * sort_array[i]) / 256;
+		int bar_height = (screen_size.h * sort_array[i]) / 256;
 		SDL_Surface * bar_surface = SDL_CreateRGBSurface(
 			0, bar_width, bar_height, 32, 0, 0, 0, 0);
 		SDL_FillRect(bar_surface, 0,
@@ -70,7 +74,7 @@ void draw_array_software(
 		SDL_Rect bar_rect;
 		bar_rect.x = i * bar_width;
 		bar_rect.w = bar_width;
-		bar_rect.y = SCREEN_HEIGHT - bar_height;
+		bar_rect.y = screen_size.h - bar_height;
 		bar_rect.h = bar_height;
 		SDL_BlitSurface(bar_surface, 0, screen_surface, &bar_rect);
 		SDL_FreeSurface(bar_surface);
@@ -79,15 +83,15 @@ void draw_array_software(
 
 void draw_array_hardware(
 	SDL_Renderer * renderer,
-	u8 * sort_array, int sa_len, SDL_Color * highlights) {
-	int bar_width = (u32)SCREEN_WIDTH / (u32)sa_len;
+	u8 * sort_array, int sa_len, SDL_Color * highlights, SDL_Rect screen_size) {
+	int bar_width = (u32)screen_size.w / (u32)sa_len;
 	for (int i = 0; i < sa_len; i++) {
 		SDL_SetRenderDrawColor(renderer, highlights[i].r, highlights[i].g, highlights[i].b, 255);
-		int bar_height = (SCREEN_HEIGHT * sort_array[i]) / 256;
+		int bar_height = (screen_size.h * sort_array[i]) / 256;
 		SDL_Rect bar_rect;
 		bar_rect.x = i * bar_width;
 		bar_rect.w = bar_width;
-		bar_rect.y = SCREEN_HEIGHT - bar_height;
+		bar_rect.y = screen_size.h - bar_height;
 		bar_rect.h = bar_height;
 		SDL_RenderFillRect(renderer, &bar_rect);
 	}
@@ -206,17 +210,17 @@ u8 sort_step(enum Sorts sort, union SortVars * sort_vars, u8 * sort_array, u32 s
 	}
 }
 
-int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, u8 use_hardware, u8 echo_fps) {
-	SDL_Window * window;
-	SDL_Surface * screen_surface;
-	SDL_Renderer * renderer;
+int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, SDL_Rect screen_size, u8 use_hardware, u8 echo_fps) {
+	SDL_Window * window = 0;
+	SDL_Surface * screen_surface = 0;
+	SDL_Renderer * renderer = 0;
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 		error_quit("Trouble initializing.");
 	}
 	window = SDL_CreateWindow(
 		"Sorting Visualizer",
 		SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-		SCREEN_WIDTH, SCREEN_HEIGHT,
+		screen_size.w, screen_size.h,
 		SDL_WINDOW_SHOWN
 	);
 	if (window == 0) {
@@ -234,7 +238,7 @@ int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, u8 us
 		}
 	}
 	u8 * sort_array = malloc(sizeof(u8) * sort_array_len);
-	for (int i = 0; i < sort_array_len; i++) {
+	for (u32 i = 0; i < sort_array_len; i++) {
 		sort_array[i] = rand() % 256;
 	}
 
@@ -274,7 +278,7 @@ int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, u8 us
 		}
 		/* SORTING */
 		SDL_Color * highlights = malloc(sizeof(SDL_Color) * sort_array_len);
-		for (int i = 0; i < sort_array_len; i++) {
+		for (u32 i = 0; i < sort_array_len; i++) {
 			highlights[i].r = 255;
 			highlights[i].g = 0;
 			highlights[i].b = 0;
@@ -287,14 +291,14 @@ int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, u8 us
 		if (use_hardware) {
 			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 			SDL_RenderClear(renderer);
-			draw_array_hardware(renderer, sort_array, sort_array_len, highlights);
+			draw_array_hardware(renderer, sort_array, sort_array_len, highlights, screen_size);
 			SDL_RenderPresent(renderer);
 		} else {
 			SDL_FillRect(
 				screen_surface, 0,
 				SDL_MapRGB(screen_surface->format, 255, 255, 255)
 			);
-			draw_array_software(screen_surface, sort_array, sort_array_len, highlights);
+			draw_array_software(screen_surface, sort_array, sort_array_len, highlights, screen_size);
 			SDL_UpdateWindowSurface(window);
 		}
 		/* FRAMERATE */
@@ -337,6 +341,9 @@ int main(int argc, char ** argv) {
 	u32 delay = 0;
 	u8 echo_fps = 0;
 	u32 sort_array_len = 80;
+	SDL_Rect screen_size;
+	screen_size.w = 640;
+	screen_size.h = 480;
 	
 	for (int i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "-a") == 0) {
@@ -368,6 +375,13 @@ int main(int argc, char ** argv) {
 		} else if (strcmp(argv[i], "-n") == 0) {
 			sort_array_len = atoi(argv[i + 1]);
 			i++;
+		} else if (strcmp(argv[i], "-r") == 0) {
+			char * dimensions = argv[i + 1];
+			i++;
+			char * width_s = strtok(dimensions, "x");
+			char * height_s = strtok(0, "x");
+			screen_size.w = atoi(width_s);
+			screen_size.h = atoi(height_s);
 		}
 	}
 
@@ -377,6 +391,6 @@ int main(int argc, char ** argv) {
 	}
 	
 	printf("Launching in %s mode.\n", use_hardware ? "hardware" : "software");
-	run_visualization(algorithm, sort_array_len, delay, use_hardware, echo_fps);
+	run_visualization(algorithm, sort_array_len, delay, screen_size, use_hardware, echo_fps);
 	return 0;
 }

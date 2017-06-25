@@ -19,8 +19,6 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
-#define SORT_ARRAY_LEN 80
-
 #define MAX_TICK_SAMPLES 100
 
 enum Sorts {
@@ -44,6 +42,7 @@ typedef struct {
 typedef struct {
 	u32 moving_index;
 	u32 position;
+	u32 last_set; // graphical importance only
 } SV_Insertion;
 
 union SortVars {
@@ -60,7 +59,7 @@ void error_quit(u8 * message) {
 void draw_array_software(
 	SDL_Surface * screen_surface,
 	u8 * sort_array, int sa_len, SDL_Color * highlights) {
-	int bar_width = SCREEN_WIDTH / sa_len;
+	int bar_width = (u32)SCREEN_WIDTH / (u32)sa_len;
 	for (int i = 0; i < sa_len; i++) {
 		int bar_height = (SCREEN_HEIGHT * sort_array[i]) / 256;
 		SDL_Surface * bar_surface = SDL_CreateRGBSurface(
@@ -81,7 +80,7 @@ void draw_array_software(
 void draw_array_hardware(
 	SDL_Renderer * renderer,
 	u8 * sort_array, int sa_len, SDL_Color * highlights) {
-	int bar_width = SCREEN_WIDTH / sa_len;
+	int bar_width = (u32)SCREEN_WIDTH / (u32)sa_len;
 	for (int i = 0; i < sa_len; i++) {
 		SDL_SetRenderDrawColor(renderer, highlights[i].r, highlights[i].g, highlights[i].b, 255);
 		int bar_height = (SCREEN_HEIGHT * sort_array[i]) / 256;
@@ -178,16 +177,19 @@ u8 sort_step(enum Sorts sort, union SortVars * sort_vars, u8 * sort_array, u32 s
 			if (first_loop) {
 				sv->moving_index = 1;
 				sv->position = 1;
+				sv->last_set = 0;
 			}
 			// Check for completion
 			if (sv->position >= sort_array_len) {
 				return ~0;
 			}
+			// Color
+			highlights[sv->last_set].r = 0;
+			highlights[sv->last_set].g = 255;
+			highlights[sv->last_set].b = 0;
 			// Compare
 			if (sv->moving_index == 0 || sort_array[sv->moving_index] > sort_array[sv->moving_index - 1]) {
-				highlights[sv->moving_index].r = 0;
-				highlights[sv->moving_index].g = 255;
-				highlights[sv->moving_index].b = 0;
+				sv->last_set = sv->moving_index;
 				sv->position++;
 				sv->moving_index = sv->position;
 			} else {
@@ -204,7 +206,7 @@ u8 sort_step(enum Sorts sort, union SortVars * sort_vars, u8 * sort_array, u32 s
 	}
 }
 
-int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware, u8 echo_fps) {
+int run_visualization(enum Sorts algorithm, u32 sort_array_len, u32 delay, u8 use_hardware, u8 echo_fps) {
 	SDL_Window * window;
 	SDL_Surface * screen_surface;
 	SDL_Renderer * renderer;
@@ -231,8 +233,8 @@ int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware, u8 echo_
 			error_quit("Trouble getting window surface.");
 		}
 	}
-	u8 sort_array[SORT_ARRAY_LEN];
-	for (int i = 0; i < SORT_ARRAY_LEN; i++) {
+	u8 * sort_array = malloc(sizeof(u8) * sort_array_len);
+	for (int i = 0; i < sort_array_len; i++) {
 		sort_array[i] = rand() % 256;
 	}
 
@@ -271,28 +273,28 @@ int run_visualization(enum Sorts algorithm, u32 delay, u8 use_hardware, u8 echo_
 			}
 		}
 		/* SORTING */
-		SDL_Color * highlights = malloc(sizeof(SDL_Color) * SORT_ARRAY_LEN);
-		for (int i = 0; i < SORT_ARRAY_LEN; i++) {
+		SDL_Color * highlights = malloc(sizeof(SDL_Color) * sort_array_len);
+		for (int i = 0; i < sort_array_len; i++) {
 			highlights[i].r = 255;
 			highlights[i].g = 0;
 			highlights[i].b = 0;
 			highlights[i].a = 255;
 		}
 		if (!sorted) {
-			sorted = sort_step(algorithm, &sort_vars, sort_array, SORT_ARRAY_LEN, highlights, first_loop);
+			sorted = sort_step(algorithm, &sort_vars, sort_array, sort_array_len, highlights, first_loop);
 		}
 		/* DRAWING */
 		if (use_hardware) {
 			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 			SDL_RenderClear(renderer);
-			draw_array_hardware(renderer, sort_array, SORT_ARRAY_LEN, highlights);
+			draw_array_hardware(renderer, sort_array, sort_array_len, highlights);
 			SDL_RenderPresent(renderer);
 		} else {
 			SDL_FillRect(
 				screen_surface, 0,
 				SDL_MapRGB(screen_surface->format, 255, 255, 255)
 			);
-			draw_array_software(screen_surface, sort_array, SORT_ARRAY_LEN, highlights);
+			draw_array_software(screen_surface, sort_array, sort_array_len, highlights);
 			SDL_UpdateWindowSurface(window);
 		}
 		/* FRAMERATE */
@@ -334,6 +336,7 @@ int main(int argc, char ** argv) {
 	u8 algorithm_specified = 0;
 	u32 delay = 0;
 	u8 echo_fps = 0;
+	u32 sort_array_len = 80;
 	
 	for (int i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "-a") == 0) {
@@ -362,6 +365,9 @@ int main(int argc, char ** argv) {
 			delay = atoi(delay_str);
 		} else if (strcmp(argv[i], "-fps") == 0) {
 			echo_fps = ~0;
+		} else if (strcmp(argv[i], "-n") == 0) {
+			sort_array_len = atoi(argv[i + 1]);
+			i++;
 		}
 	}
 
@@ -371,6 +377,6 @@ int main(int argc, char ** argv) {
 	}
 	
 	printf("Launching in %s mode.\n", use_hardware ? "hardware" : "software");
-	run_visualization(algorithm, delay, use_hardware, echo_fps);
+	run_visualization(algorithm, sort_array_len, delay, use_hardware, echo_fps);
 	return 0;
 }

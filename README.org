@@ -1,4 +1,6 @@
-
+Not in development.
+Detailed information on this project here:
+https://pixlark.github.io/projects.html#proj-sortingvisualizer
 
 * Sorting Visualizer
 
